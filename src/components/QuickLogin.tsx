@@ -36,12 +36,14 @@ const QuickLogin: React.FC<QuickLoginProps> = ({ onClose }) => {
     setIsLoggingIn(false);
   };
 
-  const handleDemoLogin = async (accountIndex: number = 0) => {
-    if (demoCredentials && demoCredentials.available_accounts[accountIndex]) {
+  const handleDemoLogin = async () => {
+    if (demoCredentials) {
       setError(null);
       setIsLoggingIn(true);
-      const account = demoCredentials.available_accounts[accountIndex];
-      const success = await login(account.email, account.password);
+      const success = await login(
+        demoCredentials.email,
+        demoCredentials.password
+      );
       if (success) {
         onClose();
       } else {
@@ -52,15 +54,84 @@ const QuickLogin: React.FC<QuickLoginProps> = ({ onClose }) => {
   };
 
   useEffect(() => {
+    const normalizeDemoCredentials = (
+      data: unknown
+    ): DemoCredentialsInterface | null => {
+      if (!data || typeof data !== "object") return null;
+
+      const obj = data as Record<string, unknown>;
+      const available = obj["available_accounts"] as unknown;
+
+      if (Array.isArray(available) && available.length > 0) {
+        const first = available[0] as unknown;
+        const email =
+          typeof (first as { email?: unknown }).email === "string"
+            ? (first as { email: string }).email
+            : "";
+        const password =
+          typeof (first as { password?: unknown }).password === "string"
+            ? (first as { password: string }).password
+            : "";
+        return {
+          email,
+          password,
+          note: typeof obj["note"] === "string" ? (obj["note"] as string) : "",
+          anonymous_option:
+            typeof obj["anonymous_option"] === "string"
+              ? (obj["anonymous_option"] as string)
+              : "",
+        };
+      }
+
+      const email =
+        typeof obj["email"] === "string" ? (obj["email"] as string) : "";
+      const password =
+        typeof obj["password"] === "string" ? (obj["password"] as string) : "";
+      if (email && password) {
+        return {
+          email,
+          password,
+          note: typeof obj["note"] === "string" ? (obj["note"] as string) : "",
+          anonymous_option:
+            typeof obj["anonymous_option"] === "string"
+              ? (obj["anonymous_option"] as string)
+              : "",
+        };
+      }
+
+      return null;
+    };
+
     authAPI
       .getDemoCredentials()
-      .then(setDemoCredentials)
+      .then((data) => {
+        const normalized = normalizeDemoCredentials(data);
+        setDemoCredentials(normalized);
+        if (normalized) {
+          setEmail(normalized.email);
+          setPassword(normalized.password);
+        }
+      })
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full p-6 relative">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full p-6 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -74,7 +145,7 @@ const QuickLogin: React.FC<QuickLoginProps> = ({ onClose }) => {
           <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-3">
             <LogIn className="w-6 h-6 text-white" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1 whitespace-nowrap">
             Sign In
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -116,7 +187,7 @@ const QuickLogin: React.FC<QuickLoginProps> = ({ onClose }) => {
           <button
             type="submit"
             disabled={isLoggingIn}
-            className="w-full p-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all disabled:opacity-50"
+            className="w-full p-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all disabled:opacity-50 whitespace-nowrap"
           >
             {isLoggingIn ? "Signing In..." : "Sign In"}
           </button>
@@ -138,29 +209,23 @@ const QuickLogin: React.FC<QuickLoginProps> = ({ onClose }) => {
 
             <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
               <p className="text-sm text-blue-800 dark:text-blue-300 mb-3">
-                <strong>Available Demo Accounts:</strong>
+                <strong>Demo Credentials:</strong>
               </p>
-              <div className="space-y-2">
-                {demoCredentials.available_accounts.map((account, index) => (
-                  <div
-                    key={index}
-                    className="flex justify-between items-center"
-                  >
-                    <div className="text-xs text-blue-700 dark:text-blue-400">
-                      <div className="font-medium">{account.role}</div>
-                      <div>
-                        {account.email} / {account.password}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleDemoLogin(index)}
-                      disabled={isLoggingIn}
-                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      Use
-                    </button>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-blue-700 dark:text-blue-400">
+                  {demoCredentials.email} / {demoCredentials.password}
+                </div>
+                <button
+                  onClick={handleDemoLogin}
+                  disabled={
+                    isLoggingIn ||
+                    !demoCredentials?.email ||
+                    !demoCredentials?.password
+                  }
+                  className="px-2 py-1 text-xs whitespace-nowrap bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Use
+                </button>
               </div>
             </div>
           </div>

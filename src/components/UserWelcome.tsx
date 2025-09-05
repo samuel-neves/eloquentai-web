@@ -32,11 +32,13 @@ const UserWelcome: React.FC<UserWelcomeProps> = ({ onClose }) => {
     setIsLoggingIn(false);
   };
 
-  const handleDemoLogin = async (accountIndex: number = 0) => {
-    if (demoCredentials && demoCredentials.available_accounts[accountIndex]) {
+  const handleDemoLogin = async () => {
+    if (demoCredentials) {
       setIsLoggingIn(true);
-      const account = demoCredentials.available_accounts[accountIndex];
-      const success = await login(account.email, account.password);
+      const success = await login(
+        demoCredentials.email,
+        demoCredentials.password
+      );
       if (success) {
         onClose();
       }
@@ -82,10 +84,10 @@ const UserWelcome: React.FC<UserWelcomeProps> = ({ onClose }) => {
             {/* Continue Anonymously */}
             <button
               onClick={handleContinueAnonymously}
-              className="w-full p-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all flex items-center justify-center gap-2"
+              className="w-full p-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all flex items-center justify-center gap-2 whitespace-nowrap"
             >
               <User size={20} />
-              Continue as Guest
+              <span className="whitespace-nowrap">Continue as Guest</span>
             </button>
 
             {/* Login Options */}
@@ -99,12 +101,12 @@ const UserWelcome: React.FC<UserWelcomeProps> = ({ onClose }) => {
               </button>
 
               <button
-                onClick={() => handleDemoLogin(0)}
+                onClick={handleDemoLogin}
                 disabled={!demoCredentials || isLoggingIn}
-                className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50 whitespace-nowrap"
               >
                 <Shield size={16} />
-                Demo Account
+                <span className="whitespace-nowrap">Demo Account</span>
               </button>
             </div>
 
@@ -185,30 +187,13 @@ const UserWelcome: React.FC<UserWelcomeProps> = ({ onClose }) => {
             {demoCredentials && (
               <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
                 <p className="text-sm text-blue-800 dark:text-blue-300 mb-2">
-                  <strong>Available Demo Accounts:</strong>
+                  <strong>Demo Credentials:</strong>
                 </p>
-                <div className="space-y-2">
-                  {demoCredentials.available_accounts.map((account, index) => (
-                    <div
-                      key={index}
-                      className="flex justify-between items-center"
-                    >
-                      <div className="text-xs text-blue-700 dark:text-blue-400">
-                        <div className="font-medium">{account.role}</div>
-                        <div>
-                          {account.email} / {account.password}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleDemoLogin(index)}
-                        disabled={isLoggingIn}
-                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        Use
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-xs text-blue-700 dark:text-blue-400">
+                  Email: {demoCredentials.email}
+                  <br />
+                  Password: {demoCredentials.password}
+                </p>
               </div>
             )}
 

@@ -279,10 +279,10 @@ const FintechChatInterface: React.FC = () => {
                   {!authState.isAuthenticated && authState.session && (
                     <button
                       onClick={() => setShowQuickLogin(true)}
-                      className="flex items-center gap-2 px-3 py-2 text-sm bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all"
+                      className="flex items-center gap-2 px-3 py-2 text-sm bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all whitespace-nowrap"
                     >
                       <LogIn size={14} />
-                      Sign In
+                      <span className="whitespace-nowrap">Sign In</span>
                     </button>
                   )}
 

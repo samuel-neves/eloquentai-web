@@ -124,15 +124,9 @@ export interface CategoryListResponseInterface {
   total_categories: number;
 }
 
-export interface DemoAccountInterface {
+export interface DemoCredentialsInterface {
   email: string;
   password: string;
-  role: string;
-  description: string;
-}
-
-export interface DemoCredentialsInterface {
-  available_accounts: DemoAccountInterface[];
   note: string;
   anonymous_option: string;
 }
