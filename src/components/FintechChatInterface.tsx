@@ -267,8 +267,7 @@ const FintechChatInterface: React.FC = () => {
                   </p>
                   {sessionInfo && (
                     <p className="text-xs text-green-600 dark:text-green-400">
-                      Session: {sessionInfo.user_type} •{" "}
-                      {sessionInfo.conversation_count} conversations
+                      Session: {sessionInfo.user_type}
                     </p>
                   )}
                 </div>

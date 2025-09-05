@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect } from "react";
 import { ChatMessageInterface, ConversationInterface } from "@/types/chat";
-import { v4 as uuidv4 } from "uuid";
+import { chatAPI } from "@/services/api";
 
 interface ChatStateInterface {
   conversations: ConversationInterface[];
@@ -102,6 +102,7 @@ function chatReducer(
     case "CLEAR_CURRENT_CONVERSATION":
       return {
         ...state,
+        conversations: [],
         currentMessages: [],
         currentConversationId: null,
       };
@@ -123,23 +124,66 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(chatReducer, initialState);
 
-  // Load conversations from localStorage on mount
   useEffect(() => {
+    const handleAuthChange = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail?.history) {
+        const messages = customEvent.detail.history;
+        const now = new Date().toISOString();
+        const conversation = {
+          id: localStorage.getItem("session_id") || "",
+          title: "Previous Conversation",
+          messages,
+          created_at: now,
+          updated_at: now,
+        };
+        dispatch({ type: "SET_CONVERSATIONS", payload: [conversation] });
+        dispatch({
+          type: "SET_CURRENT_CONVERSATION",
+          payload: conversation.id,
+        });
+      } else {
+        loadConversationsFromStorage();
+      }
+    };
+
+    const clearOnLogout = () => {
+      dispatch({ type: "CLEAR_CURRENT_CONVERSATION" });
+      loadConversationsFromStorage();
+    };
+
+    window.addEventListener(
+      "auth-session-changed",
+      handleAuthChange as EventListener
+    );
+    window.addEventListener("auth-logged-out", clearOnLogout as EventListener);
     loadConversationsFromStorage();
+
+    return () => {
+      window.removeEventListener(
+        "auth-session-changed",
+        handleAuthChange as EventListener
+      );
+      window.removeEventListener(
+        "auth-logged-out",
+        clearOnLogout as EventListener
+      );
+    };
   }, []);
 
-  // Save conversations to localStorage when conversations change
   useEffect(() => {
-    if (state.conversations.length > 0) {
-      localStorage.setItem(
-        "eloquentai-conversations",
-        JSON.stringify(state.conversations)
-      );
-    }
+    const userType = localStorage.getItem("user_type") || "anonymous";
+    const sessionId = localStorage.getItem("session_id") || "";
+    const key = `eloquentai-conversations-${userType}-${sessionId}`;
+    localStorage.setItem(key, JSON.stringify(state.conversations));
   }, [state.conversations]);
 
   const createNewConversation = (firstMessage?: string): string => {
-    const newId = uuidv4();
+    const sessionId = localStorage.getItem("session_id");
+    if (!sessionId) {
+      throw new Error("No active session");
+    }
+
     const now = new Date().toISOString();
     const title = firstMessage
       ? firstMessage.length > 50
@@ -148,7 +192,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       : "New Conversation";
 
     const newConversation: ConversationInterface = {
-      id: newId,
+      id: sessionId,
       title,
       messages: [],
       created_at: now,
@@ -156,9 +200,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     };
 
     dispatch({ type: "ADD_CONVERSATION", payload: newConversation });
-    dispatch({ type: "SET_CURRENT_CONVERSATION", payload: newId });
+    dispatch({ type: "SET_CURRENT_CONVERSATION", payload: sessionId });
 
-    return newId;
+    return sessionId;
   };
 
   const loadConversation = (conversationId: string) => {
@@ -166,19 +210,39 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   };
 
   const saveConversationToStorage = () => {
-    localStorage.setItem(
-      "eloquentai-conversations",
-      JSON.stringify(state.conversations)
-    );
+    const userType = localStorage.getItem("user_type") || "anonymous";
+    const sessionId = localStorage.getItem("session_id") || "";
+    const key = `eloquentai-conversations-${userType}-${sessionId}`;
+    localStorage.setItem(key, JSON.stringify(state.conversations));
   };
 
-  const loadConversationsFromStorage = () => {
+  const loadConversationsFromStorage = async () => {
     try {
-      const stored = localStorage.getItem("eloquentai-conversations");
-      if (stored) {
-        const conversations = JSON.parse(stored);
-        dispatch({ type: "SET_CONVERSATIONS", payload: conversations });
+      const userType = localStorage.getItem("user_type") || "anonymous";
+      const sessionId = localStorage.getItem("session_id") || "";
+
+      if (userType === "authenticated" && sessionId) {
+        const history = await chatAPI.getConversationHistory(sessionId);
+        if (history.messages?.length > 0) {
+          const now = new Date().toISOString();
+          const conversation = {
+            id: sessionId,
+            title: "Previous Conversation",
+            messages: history.messages,
+            created_at: now,
+            updated_at: now,
+          };
+          dispatch({ type: "SET_CONVERSATIONS", payload: [conversation] });
+          dispatch({ type: "SET_CURRENT_CONVERSATION", payload: sessionId });
+          return;
+        }
       }
+
+      const key = `eloquentai-conversations-${userType}-${sessionId}`;
+      const stored = localStorage.getItem(key);
+      const conversations = stored ? JSON.parse(stored) : [];
+      dispatch({ type: "SET_CONVERSATIONS", payload: conversations });
+      dispatch({ type: "SET_CURRENT_CONVERSATION", payload: null });
     } catch {
       dispatch({ type: "SET_ERROR", payload: "Failed to load conversations" });
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useReducer, useEffect } from "react";
-import { authAPI } from "@/services/api";
+import { authAPI, chatAPI } from "@/services/api";
 import { AuthResponseInterface, SessionInfoInterface } from "@/types/chat";
 
 interface AuthStateInterface {
@@ -94,6 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         await authAPI.createAnonymousSession();
       localStorage.setItem("auth_token", response.token);
       localStorage.setItem("session_id", response.session_id);
+      localStorage.setItem("user_type", response.user_type || "anonymous");
       localStorage.setItem("user_visited", "true");
 
       const session = await authAPI.getSession();
@@ -104,29 +105,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           session,
         },
       });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("auth-session-changed"));
+      }
     } catch {
       dispatch({ type: "SET_ERROR", payload: "Failed to create session" });
     }
   }, []);
 
-  // Initialize session
   const initializeSession = React.useCallback(async () => {
     try {
       dispatch({ type: "SET_LOADING", payload: true });
 
       const token = localStorage.getItem("auth_token");
       if (token) {
-        // Try to get existing session
         try {
           const session = await authAPI.getSession();
           dispatch({ type: "SET_SESSION", payload: session });
           dispatch({ type: "SET_FIRST_TIME_USER", payload: false });
         } catch {
-          // Session expired, create new anonymous session
           await createAnonymousSession();
         }
       } else {
-        // No token, create anonymous session
         await createAnonymousSession();
       }
     } catch {
@@ -136,14 +136,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [createAnonymousSession]);
 
-  // Check if user has visited before
   useEffect(() => {
     const hasVisited = localStorage.getItem("user_visited");
     if (hasVisited) {
       dispatch({ type: "SET_FIRST_TIME_USER", payload: false });
     }
 
-    // Initialize session
     initializeSession();
   }, [initializeSession]);
 
@@ -158,9 +156,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       });
       localStorage.setItem("auth_token", response.token);
       localStorage.setItem("session_id", response.session_id);
+      localStorage.setItem("user_type", response.user_type || "authenticated");
       localStorage.setItem("user_visited", "true");
 
       const session = await authAPI.getSession();
+      const history = await chatAPI.getConversationHistory(response.session_id);
+
       dispatch({
         type: "LOGIN_SUCCESS",
         payload: {
@@ -171,6 +172,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           session,
         },
       });
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("auth-session-changed", {
+            detail: { history: history.messages },
+          })
+        );
+      }
 
       return true;
     } catch {
@@ -186,13 +195,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const logout = async () => {
     try {
-      await authAPI.logout();
-    } catch {
-    } finally {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("session_id");
+      localStorage.removeItem("user_type");
+      localStorage.removeItem("user_visited");
       dispatch({ type: "LOGOUT" });
-      // Create new anonymous session after logout
-      await createAnonymousSession();
-    }
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("auth-logged-out"));
+      }
+
+      await authAPI.logout();
+    } catch {}
+
+    await createAnonymousSession();
   };
 
   const checkSession = async () => {
@@ -200,7 +216,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const session = await authAPI.getSession();
       dispatch({ type: "SET_SESSION", payload: session });
     } catch {
-      // Session expired, create new anonymous session
       await createAnonymousSession();
     }
   };
